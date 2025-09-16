@@ -1,1 +1,1 @@
-web: python -m playwright install --with-deps chromium && gunicorn --config gunicorn.conf.py app:app
+web: gunicorn --config gunicorn.conf.py app:app
