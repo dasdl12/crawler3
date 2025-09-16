@@ -359,13 +359,9 @@ class SohuScraper(BaseScraper):
         
         # 腾讯研究院AI速递标题通常格式为：腾讯研究院AI速递｜8.28
         # 或者：腾讯研究院AI速递 8月28日
-<<<<<<< HEAD
         # 或者：腾讯研究院AI速递 20250911
         date_patterns = [
             (r'(\d{8})', 'YYYYMMDD'),  # 20250911 格式
-=======
-        date_patterns = [
->>>>>>> e0628e40f446a2e97574cb1ad9e02f4dcc7c8d1f
             (r'(\d{1,2})\.(\d{1,2})', '%m.%d'),  # 8.28 格式
             (r'(\d{1,2})月(\d{1,2})日', '%m月%d日'),  # 8月28日 格式  
             (r'(\d{4})\.(\d{1,2})\.(\d{1,2})', '%Y.%m.%d'),  # 2024.8.28 格式
@@ -378,7 +374,6 @@ class SohuScraper(BaseScraper):
             if matches:
                 match = matches[0]
                 try:
-<<<<<<< HEAD
                     if format_template == 'YYYYMMDD':
                         # 处理 20250911 格式
                         date_str = match
@@ -387,9 +382,6 @@ class SohuScraper(BaseScraper):
                         day = int(date_str[6:8])
                         return f"{year}-{month:02d}-{day:02d}"
                     elif format_template in ['%m.%d', '%m月%d日']:
-=======
-                    if format_template in ['%m.%d', '%m月%d日']:
->>>>>>> e0628e40f446a2e97574cb1ad9e02f4dcc7c8d1f
                         # 只有月日，需要补充年份
                         current_year = datetime.datetime.now().year
                         month = int(match[0])
