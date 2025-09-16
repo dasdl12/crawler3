@@ -66,6 +66,15 @@ def index():
     """主页"""
     return render_template('index.html')
 
+@app.route('/health')
+def health_check():
+    """健康检查端点"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    }), 200
+
 @app.route('/api/config')
 def get_config():
     """获取系统配置"""
