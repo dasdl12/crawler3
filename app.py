@@ -39,7 +39,8 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # 确保目录存在
-Config.ensure_dirs()
+# 在 Railway 等只读文件系统中，此操作应在构建阶段完成，运行时调用会导致崩溃。
+# Config.ensure_dirs()
 
 # # 启动定时任务调度器 - 注意：在生产环境中（如Gunicorn），不应在全局范围内启动。
 # # 这会导致每个worker进程都尝试启动一个调度器实例。
