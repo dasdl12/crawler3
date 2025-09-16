@@ -40,8 +40,9 @@ app.config.from_object(Config)
 # 确保目录存在
 Config.ensure_dirs()
 
-# 启动定时任务调度器
-scheduler_manager.start()
+# # 启动定时任务调度器 - 注意：在生产环境中（如Gunicorn），不应在全局范围内启动。
+# # 这会导致每个worker进程都尝试启动一个调度器实例。
+# # scheduler_manager.start()
 
 # 全局变量
 current_task = None
@@ -824,6 +825,10 @@ if __name__ == '__main__':
     logger.info("启动AI资讯采集系统...")
     logger.info(f"DeepSeek API配置: {'✅ 已配置' if Config.DEEPSEEK_API_KEY else '❌ 未配置'}")
     logger.info(f"Webhook配置: {'✅ 已配置' if Config.KINGSOFT_WEBHOOK_URL else '❌ 未配置'}")
+    
+    # 仅在直接运行脚本时（本地开发）启动调度器
+    logger.info("启动定时任务调度器 (仅限本地开发)...")
+    scheduler_manager.start()
     
     app.run(
         host=Config.HOST,
