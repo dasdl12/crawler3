@@ -810,6 +810,6 @@ if __name__ == '__main__':
     app.run(
         host=Config.HOST,
         port=Config.PORT,
-        debug=True,
+        debug=Config.DEBUG,
         use_reloader=False
     )

@@ -14,10 +14,10 @@ except ImportError:
 
 class Config:
     # 基础配置
-    SECRET_KEY = 'your-secret-key-here'
-    DEBUG = True
-    HOST = '127.0.0.1'
-    PORT = 5000
+    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    HOST = '0.0.0.0'  # Railway需要监听所有接口
+    PORT = int(os.getenv('PORT', 5000))  # Railway会提供PORT环境变量
     
     # DeepSeek API配置
     DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
