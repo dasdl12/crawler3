@@ -26,7 +26,8 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('app.log', encoding='utf-8'),
+        # 在 Railway 等容器环境中，应将日志输出到标准输出，由平台统一收集。
+        # 写入文件可能会因权限问题导致应用启动失败。
         logging.StreamHandler()
     ]
 )
