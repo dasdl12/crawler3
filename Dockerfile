@@ -47,7 +47,10 @@ RUN python -m playwright install-deps
 COPY . .
 
 # 创建必要的目录
-RUN mkdir -p cache exports/reports exports/posters static templates
+RUN mkdir -p cache exports/reports exports/posters
+
+# 确保templates和static目录存在且有正确权限
+RUN chmod -R 755 /app
 
 # 暴露端口
 EXPOSE $PORT

@@ -75,6 +75,15 @@ def health_check():
         'version': '1.0.0'
     }), 200
 
+@app.route('/test')
+def test_route():
+    """测试路由"""
+    return jsonify({
+        'message': 'AI资讯采集系统运行正常',
+        'status': 'success',
+        'timestamp': datetime.now().isoformat()
+    }), 200
+
 @app.route('/api/config')
 def get_config():
     """获取系统配置"""
