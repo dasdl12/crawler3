@@ -909,6 +909,19 @@
                         this.addLog('error', `连接测试失败: ${error.message}`);
                     } finally {
                         this.isWorking = false;
+                        
+                        // 3秒后重置进度状态，避免干扰其他操作
+                        setTimeout(() => {
+                            if (this.progress.operation === 'generate_report') {
+                                this.progress = {
+                                    status: 'idle',
+                                    progress: 0,
+                                    message: '',
+                                    details: [],
+                                    operation: ''
+                                };
+                            }
+                        }, 3000);
                     }
                 },
                 
@@ -1148,6 +1161,19 @@
                         this.addLog('error', `❌ 生成海报异常: ${error.message}`);
                     } finally {
                         this.isWorking = false;
+                        
+                        // 3秒后重置进度状态，避免干扰其他操作
+                        setTimeout(() => {
+                            if (this.progress.operation === 'generate_poster') {
+                                this.progress = {
+                                    status: 'idle',
+                                    progress: 0,
+                                    message: '',
+                                    details: [],
+                                    operation: ''
+                                };
+                            }
+                        }, 3000);
                     }
                 },
                 
@@ -1216,35 +1242,53 @@
                 
                 // 轮询进度
                 startProgressPolling() {
+                    let lastProgressState = null;
+                    let lastCompletedOperation = null;
+                    
                     setInterval(async () => {
                         try {
                             const response = await axios.get('/api/progress');
                             const serverProgress = response.data;
                             
-                            // 只有当服务器返回的进度不是idle状态，或者当前没有本地操作进度时，才更新进度
-                            if (serverProgress.status !== 'idle' || this.progress.status === 'idle') {
+                            // 只有当前端没有本地操作进度时，才使用服务器进度（主要用于采集操作）
+                            if (this.progress.operation === 'crawl' || this.progress.status === 'idle') {
                                 // 如果服务器有进度信息，且没有指定操作类型，默认为采集操作
                                 if (serverProgress.status !== 'idle' && !serverProgress.operation) {
                                     serverProgress.operation = 'crawl';
                                 }
-                                this.progress = serverProgress;
+                                
+                                // 检查状态是否真的发生了变化
+                                const currentState = `${serverProgress.status}-${serverProgress.progress}-${serverProgress.operation}`;
+                                if (currentState !== lastProgressState) {
+                                    this.progress = serverProgress;
+                                    lastProgressState = currentState;
+                                }
                             }
                             
-                            // 如果任务完成，更新相关数据
+                            // 只有当任务刚刚完成时才处理完成逻辑（避免重复处理）
                             if (this.progress.status === 'completed') {
-                                if (this.progress.articles && this.progress.operation === 'crawl') {
-                                    this.articles = this.progress.articles;
-                                    this.addLog('info', `采集任务完成，共获取 ${this.articles.length} 篇文章`);
+                                const completedKey = `${this.progress.operation}-${this.progress.progress}`;
+                                
+                                if (completedKey !== lastCompletedOperation) {
+                                    if (this.progress.articles && this.progress.operation === 'crawl') {
+                                        this.articles = this.progress.articles;
+                                        this.addLog('info', `采集任务完成，共获取 ${this.articles.length} 篇文章`);
+                                    }
+                                    this.isWorking = false;
+                                    lastCompletedOperation = completedKey;
                                 }
-                                this.isWorking = false;
                             } else if (this.progress.status === 'error') {
-                                this.isWorking = false;
-                                this.addLog('error', this.progress.message);
+                                const errorKey = `error-${this.progress.message}`;
+                                if (errorKey !== lastCompletedOperation) {
+                                    this.isWorking = false;
+                                    this.addLog('error', this.progress.message);
+                                    lastCompletedOperation = errorKey;
+                                }
                             }
                         } catch (error) {
                             // 忽略轮询错误
                         }
-                    }, 1000);
+                    }, 2000); // 降低轮询频率到2秒
                 },
                 
                 // 工具方法
