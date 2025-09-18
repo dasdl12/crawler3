@@ -358,20 +358,46 @@ class ScheduledTaskManager:
                 self.task_status[job_id]['progress'] = 65
                 self.task_status[job_id]['details'].append('🎨 开始生成海报...')
                 
+                # 首先使用AI生成HTML模板（与手动操作保持一致）
+                custom_html = None
+                try:
+                    self.task_status[job_id]['details'].append('📝 正在调用AI生成海报HTML...')
+                    
+                    # 重用已有的DeepSeek API实例或创建新的
+                    html_api = DeepSeekAPI()
+                    try:
+                        html_result = await html_api.generate_poster_html(report_content, report_date)
+                        if html_result.get('success'):
+                            custom_html = html_result['html']
+                            self.task_status[job_id]['details'].append('✅ AI HTML模板生成成功')
+                            logger.info("定时任务：AI HTML模板生成成功")
+                        else:
+                            self.task_status[job_id]['details'].append(f'⚠️ AI HTML生成失败，将使用默认模板: {html_result.get("error")}')
+                            logger.warning(f"定时任务：AI生成HTML失败，将使用默认模板: {html_result.get('error')}")
+                    finally:
+                        await html_api.close_session()
+                        
+                except Exception as e:
+                    self.task_status[job_id]['details'].append(f'⚠️ AI HTML生成异常，将使用默认模板: {str(e)}')
+                    logger.error(f"定时任务：AI生成HTML异常: {e}")
+                
+                # 生成海报图片
+                self.task_status[job_id]['details'].append('🖼️ 正在渲染海报图片...')
                 generator = PosterGenerator()
-                # 使用与手动操作相同的参数：启用AI生成HTML
                 poster_result = await generator.generate_poster_from_report(
                     report_content, 
                     report_date, 
-                    custom_html=None  # 让系统自动生成AI HTML
+                    custom_html=custom_html  # 使用AI生成的HTML或None（默认模板）
                 )
                 
                 if poster_result.get('success'):
                     poster_path = poster_result['image_path']
-                    self.task_status[job_id]['details'].append('✅ 海报生成完成')
+                    html_source = "AI生成的HTML模板" if custom_html else "默认HTML模板"
+                    self.task_status[job_id]['details'].append(f'✅ 海报生成完成（使用{html_source}）')
+                    logger.info(f"定时任务：海报生成完成，使用{html_source}")
                 else:
                     self.task_status[job_id]['details'].append(f'⚠️ 海报生成失败: {poster_result.get("error")}')
-                    logger.warning(f"海报生成失败: {poster_result.get('error')}")
+                    logger.warning(f"定时任务：海报生成失败: {poster_result.get('error')}")
             
             # 步骤4: 推送到Webhook（如果启用）
             if webhook_enabled:
