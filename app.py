@@ -345,8 +345,6 @@ def get_progress():
 @app.route('/api/generate_report', methods=['POST'])
 def generate_report():
     """生成AI日报"""
-    global task_progress
-    
     try:
         data = request.json
         target_date = data.get('date', date.today().strftime('%Y-%m-%d'))
@@ -363,12 +361,7 @@ def generate_report():
         if not articles:
             return jsonify({'success': False, 'error': '没有可用的文章数据'}), 400
         
-        task_progress = {
-            "status": "running",
-            "progress": 0,
-            "message": "正在生成AI日报...",
-            "details": []
-        }
+        logger.info(f"开始生成AI日报: {target_date}")
         
         # 使用DeepSeek生成日报
         api = DeepSeekAPI()
@@ -385,9 +378,7 @@ def generate_report():
             with open(md_file, 'w', encoding='utf-8') as f:
                 f.write(result['content'])
             
-            task_progress["status"] = "completed"
-            task_progress["progress"] = 100
-            task_progress["message"] = "AI日报生成成功"
+            logger.info(f"AI日报生成成功: {target_date}")
             
             return jsonify({
                 'success': True,
@@ -398,8 +389,7 @@ def generate_report():
                 }
             })
         else:
-            task_progress["status"] = "error"
-            task_progress["message"] = f"日报生成失败: {result.get('error', '未知错误')}"
+            logger.error(f"日报生成失败: {result.get('error', '未知错误')}")
             
             return jsonify({
                 'success': False,
@@ -407,8 +397,7 @@ def generate_report():
             }), 500
             
     except Exception as e:
-        task_progress["status"] = "error"
-        task_progress["message"] = f"生成日报时出错: {str(e)}"
+        logger.error(f"生成日报时出错: {str(e)}")
         
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -481,7 +470,8 @@ def generate_poster():
     global task_progress
     
     try:
-        task_progress = {"status": "running", "progress": 0, "message": "开始生成海报...", "details": []}
+        # 不要重置全局进度，让前端自己管理进度状态
+        # task_progress = {"status": "running", "progress": 0, "message": "开始生成海报...", "details": []}
         
         data = request.json
         content = data.get('content', '')
@@ -489,40 +479,31 @@ def generate_poster():
         custom_html = data.get('html', None)
         
         if not content:
-            task_progress["status"] = "error"
-            task_progress["message"] = "没有可生成海报的内容"
             return jsonify({'success': False, 'error': '没有可生成海报的内容'}), 400
         
-        task_progress["progress"] = 10
-        task_progress["message"] = "解析内容..."
-        task_progress["details"].append("✅ 内容解析完成")
+        logger.info("开始生成海报...")
         
         # 如果有自定义HTML，优先使用AI生成
         if not custom_html and data.get('use_ai', False):
-            task_progress["progress"] = 25
-            task_progress["message"] = "使用AI生成HTML模板..."
+            logger.info("使用AI生成HTML模板...")
             
             api = DeepSeekAPI()
             try:
                 html_result = run_async(api.generate_poster_html(content, target_date))
                 if html_result.get('success'):
                     custom_html = html_result['html']
-                    task_progress["details"].append("✅ AI HTML模板生成成功")
-                    logger.info("使用AI生成的HTML模板")
+                    logger.info("AI HTML模板生成成功")
                 else:
-                    task_progress["details"].append("⚠️ AI生成HTML失败，使用默认模板")
                     logger.warning(f"AI生成HTML失败，将使用默认模板: {html_result.get('error')}")
             except Exception as e:
-                task_progress["details"].append("⚠️ AI生成HTML异常，使用默认模板")
                 logger.error(f"AI生成HTML异常: {e}")
             finally:
                 # 确保关闭session
                 run_async(api.close_session())
         else:
-            task_progress["details"].append("✅ 使用默认HTML模板")
+            logger.info("使用默认HTML模板")
         
-        task_progress["progress"] = 50
-        task_progress["message"] = "生成海报图片..."
+        logger.info("生成海报图片...")
         
         # 生成海报
         generator = PosterGenerator()
@@ -534,26 +515,14 @@ def generate_poster():
             result['html_source'] = html_source
             result['path'] = result['image_path']  # 添加前端期望的字段
             
-            task_progress["status"] = "completed"
-            task_progress["progress"] = 100
-            task_progress["message"] = "海报生成完成"
-            task_progress["details"].append(f"✅ 海报生成成功，使用: {html_source}")
-            
             logger.info(f"海报生成成功，使用: {html_source}")
         else:
-            task_progress["status"] = "error"
-            task_progress["message"] = f"海报生成失败: {result.get('error')}"
-            task_progress["details"].append(f"❌ 海报生成失败: {result.get('error')}")
-            
             logger.error(f"海报生成失败: {result.get('error')}")
         
         return jsonify(result)
         
     except Exception as e:
-        task_progress["status"] = "error"
-        task_progress["message"] = f"海报生成异常: {str(e)}"
-        task_progress["details"].append(f"❌ 异常错误: {str(e)}")
-        
+        logger.error(f"海报生成异常: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/send_poster', methods=['POST'])
@@ -704,13 +673,27 @@ def start_multiple_crawl():
 def get_scheduled_tasks():
     """获取所有定时任务"""
     try:
+        # 确保调度器管理器已初始化
+        if not hasattr(scheduler_manager, 'scheduler'):
+            logger.error("调度器管理器未正确初始化")
+            return jsonify({
+                'success': True,
+                'tasks': [],
+                'message': '调度器未初始化'
+            })
+        
         tasks = scheduler_manager.get_scheduled_tasks()
         return jsonify({
             'success': True,
             'tasks': tasks
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"获取定时任务失败: {e}")
+        return jsonify({
+            'success': True,
+            'tasks': [],
+            'error': str(e)
+        })
 
 @app.route('/api/scheduler/add_daily_task', methods=['POST'])
 def add_daily_task():
@@ -801,6 +784,21 @@ def get_task_status(job_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/scheduler/all_task_status')
+def get_all_task_status():
+    """获取所有任务的执行状态"""
+    try:
+        all_status = {}
+        for job_id, status in scheduler_manager.task_status.items():
+            all_status[job_id] = status
+        
+        return jsonify({
+            'success': True,
+            'task_status': all_status
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/date_range', methods=['POST'])
 def generate_date_range():
     """生成日期范围"""
@@ -823,14 +821,23 @@ def generate_date_range():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# 在应用启动时初始化调度器（无论是开发还是生产环境）
+def init_scheduler():
+    """初始化调度器"""
+    try:
+        logger.info("初始化定时任务调度器...")
+        scheduler_manager.start()
+        logger.info("定时任务调度器初始化完成")
+    except Exception as e:
+        logger.error(f"定时任务调度器初始化失败: {e}")
+
+# 在应用启动时调用
+init_scheduler()
+
 if __name__ == '__main__':
     logger.info("启动AI资讯采集系统...")
     logger.info(f"DeepSeek API配置: {'✅ 已配置' if Config.DEEPSEEK_API_KEY else '❌ 未配置'}")
     logger.info(f"Webhook配置: {'✅ 已配置' if Config.KINGSOFT_WEBHOOK_URL else '❌ 未配置'}")
-    
-    # 仅在直接运行脚本时（本地开发）启动调度器
-    logger.info("启动定时任务调度器 (仅限本地开发)...")
-    scheduler_manager.start()
     
     app.run(
         host=Config.HOST,

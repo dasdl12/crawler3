@@ -17,12 +17,16 @@ class PosterGenerator:
         # 更宽的海报展示尺寸
         self.viewport_size = {"width": 530, "height": 960}
         
-        # --- 新增：配置您的Logo路径 ---
-        # 请确保路径正确，Windows路径中的反斜杠'\'需要转义成'\\'或使用原始字符串 r"..."
-        self.logo_path = "C:\\Users\\Administrator\\Desktop\\proctol\\01-金山 金山云logo-04.png" # 假设您的logo是png格式，如果不是请修改后缀
+        # --- 配置Logo路径 ---
+        # 使用项目根目录下的logo.png文件
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        self.logo_path = os.path.join(project_root, "logo.png")
+        
         if not os.path.exists(self.logo_path):
-            logger.warning(f"Logo文件未找到，请检查路径: {self.logo_path}")
+            logger.warning(f"Logo文件未找到: {self.logo_path}")
             self.logo_path = None # 如果Logo不存在，则不执行添加操作
+        else:
+            logger.info(f"找到Logo文件: {self.logo_path}")
         
     async def generate_poster_from_report(self, report_content: str, date: str, custom_html: str = None) -> Dict:
         """

@@ -240,13 +240,13 @@
                         <button @click="generateReport" :disabled="isWorking || articles.length === 0"
                                 class="w-full btn-primary text-white py-2 px-4 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-3">
                             <i class="fas fa-magic mr-2"></i>
-                            生成AI日报
+                            <span v-text="getReportButtonText()"></span>
                         </button>
 
                         <button @click="generatePoster" :disabled="isWorking || !reportContent"
                                 class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3">
                             <i class="fas fa-image mr-2"></i>
-                            <span v-text="isWorking ? '🎨 生成中...' : '生成海报'"></span>
+                            <span v-text="getPosterButtonText()"></span>
                         </button>
 
                         <!-- 推送控制 -->
@@ -301,6 +301,23 @@
                                         <div class="text-xs text-gray-600" v-text="task.trigger"></div>
                                         <div v-if="task.next_run_time" class="text-xs text-blue-600">
                                             下次执行: [[ formatDateTime(task.next_run_time) ]]
+                                        </div>
+                                        <!-- 执行状态显示 -->
+                                        <div v-if="task.execution_status && task.execution_status.status !== 'scheduled'" 
+                                             class="text-xs mt-1">
+                                            <div :class="getTaskExecutionStatusClass(task.execution_status.status)" 
+                                                 class="inline-block px-2 py-1 rounded">
+                                                [[ getTaskExecutionStatusText(task.execution_status.status) ]]
+                                            </div>
+                                            <div v-if="task.execution_status.message" class="text-gray-600 mt-1">
+                                                [[ task.execution_status.message ]]
+                                            </div>
+                                            <div v-if="task.execution_status.progress > 0" class="mt-1">
+                                                <div class="w-full bg-gray-200 rounded-full h-1">
+                                                    <div class="bg-blue-600 h-1 rounded-full" 
+                                                         :style="{width: task.execution_status.progress + '%'}"></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="flex space-x-1">
@@ -811,6 +828,7 @@
                 this.loadConfig();
                 this.startProgressPolling();
                 this.loadScheduledTasks();
+                this.startTaskStatusPolling();
                 this.addLog('info', '系统启动完成');
             },
             
@@ -896,6 +914,14 @@
                 
                 // 开始爬取
                 async startCrawl() {
+                    // 重置进度状态，专门用于采集
+                    this.progress = {
+                        status: 'running',
+                        progress: 0,
+                        message: '开始采集任务...',
+                        details: [],
+                        operation: 'crawl'
+                    };
                     this.isWorking = true;
                     this.articles = [];
                     this.reportContent = '';
@@ -941,6 +967,13 @@
                             throw new Error(response.data.error);
                         }
                     } catch (error) {
+                        this.progress = {
+                            status: 'error',
+                            progress: 0,
+                            message: `启动采集任务失败: ${error.message}`,
+                            details: [`❌ ${error.message}`],
+                            operation: 'crawl'
+                        };
                         this.showNotification('error', '启动采集任务失败');
                         this.addLog('error', `启动采集失败: ${error.message}`);
                         this.isWorking = false;
@@ -954,6 +987,14 @@
                         return;
                     }
                     
+                    // 重置进度状态，专门用于生成AI日报
+                    this.progress = {
+                        status: 'running',
+                        progress: 0,
+                        message: '开始生成AI日报...',
+                        details: [],
+                        operation: 'generate_report'
+                    };
                     this.isWorking = true;
                     this.addLog('info', '开始生成AI日报...');
                     
@@ -966,13 +1007,34 @@
                         if (response.data.success) {
                             this.reportContent = response.data.report.content;
                             this.activeTab = 'report';
+                            this.progress = {
+                                status: 'completed',
+                                progress: 100,
+                                message: 'AI日报生成成功',
+                                details: ['✅ AI日报生成完成'],
+                                operation: 'generate_report'
+                            };
                             this.showNotification('success', 'AI日报生成成功');
                             this.addLog('info', 'AI日报生成完成');
                         } else {
+                            this.progress = {
+                                status: 'error',
+                                progress: 0,
+                                message: `生成日报失败: ${response.data.error}`,
+                                details: [`❌ ${response.data.error}`],
+                                operation: 'generate_report'
+                            };
                             this.showNotification('error', response.data.error || '生成日报失败');
                             this.addLog('error', `生成日报失败: ${response.data.error}`);
                         }
                     } catch (error) {
+                        this.progress = {
+                            status: 'error',
+                            progress: 0,
+                            message: `生成日报异常: ${error.message}`,
+                            details: [`❌ ${error.message}`],
+                            operation: 'generate_report'
+                        };
                         this.showNotification('error', '生成日报失败');
                         this.addLog('error', `生成日报异常: ${error.message}`);
                     } finally {
@@ -1027,6 +1089,14 @@
                         return;
                     }
                     
+                    // 重置进度状态，专门用于生成海报
+                    this.progress = {
+                        status: 'running',
+                        progress: 0,
+                        message: '🎨 开始生成海报...',
+                        details: ['📝 正在调用AI生成海报HTML...'],
+                        operation: 'generate_poster'
+                    };
                     this.isWorking = true;
                     this.addLog('info', '🎨 开始生成海报...');
                     this.addLog('info', '📝 正在调用AI生成海报HTML...');
@@ -1042,14 +1112,38 @@
                             this.posterPath = response.data.path;
                             this.activeTab = 'poster';
                             const htmlSource = response.data.html_source || '模板';
+                            this.progress = {
+                                status: 'completed',
+                                progress: 100,
+                                message: `海报生成成功（${htmlSource}）`,
+                                details: [
+                                    `✅ 海报生成完成，使用${htmlSource}`,
+                                    `📊 文件大小: ${Math.round(response.data.file_size/1024)}KB`
+                                ],
+                                operation: 'generate_poster'
+                            };
                             this.showNotification('success', `海报生成成功（${htmlSource}）`);
                             this.addLog('info', `✅ 海报生成完成，使用${htmlSource}`);
                             this.addLog('info', `📊 文件大小: ${Math.round(response.data.file_size/1024)}KB`);
                         } else {
+                            this.progress = {
+                                status: 'error',
+                                progress: 0,
+                                message: `生成海报失败: ${response.data.error}`,
+                                details: [`❌ ${response.data.error}`],
+                                operation: 'generate_poster'
+                            };
                             this.showNotification('error', response.data.error || '生成海报失败');
                             this.addLog('error', `❌ 生成海报失败: ${response.data.error}`);
                         }
                     } catch (error) {
+                        this.progress = {
+                            status: 'error',
+                            progress: 0,
+                            message: `生成海报异常: ${error.message}`,
+                            details: [`❌ ${error.message}`],
+                            operation: 'generate_poster'
+                        };
                         this.showNotification('error', '生成海报失败');
                         this.addLog('error', `❌ 生成海报异常: ${error.message}`);
                     } finally {
@@ -1125,13 +1219,24 @@
                     setInterval(async () => {
                         try {
                             const response = await axios.get('/api/progress');
-                            this.progress = response.data;
+                            const serverProgress = response.data;
+                            
+                            // 只有当服务器返回的进度不是idle状态，或者当前没有本地操作进度时，才更新进度
+                            if (serverProgress.status !== 'idle' || this.progress.status === 'idle') {
+                                // 如果服务器有进度信息，且没有指定操作类型，默认为采集操作
+                                if (serverProgress.status !== 'idle' && !serverProgress.operation) {
+                                    serverProgress.operation = 'crawl';
+                                }
+                                this.progress = serverProgress;
+                            }
                             
                             // 如果任务完成，更新相关数据
-                            if (this.progress.status === 'completed' && this.progress.articles) {
-                                this.articles = this.progress.articles;
+                            if (this.progress.status === 'completed') {
+                                if (this.progress.articles && this.progress.operation === 'crawl') {
+                                    this.articles = this.progress.articles;
+                                    this.addLog('info', `采集任务完成，共获取 ${this.articles.length} 篇文章`);
+                                }
                                 this.isWorking = false;
-                                this.addLog('info', `任务完成，共获取 ${this.articles.length} 篇文章`);
                             } else if (this.progress.status === 'error') {
                                 this.isWorking = false;
                                 this.addLog('error', this.progress.message);
@@ -1266,7 +1371,7 @@
                 },
                 
                 getCrawlButtonText() {
-                    if (this.isWorking) {
+                    if (this.isWorking && this.progress.operation === 'crawl') {
                         return '采集中...';
                     }
                     
@@ -1283,6 +1388,20 @@
                     return '开始采集';
                 },
                 
+                getReportButtonText() {
+                    if (this.isWorking && this.progress.operation === 'generate_report') {
+                        return '生成中...';
+                    }
+                    return '生成AI日报';
+                },
+                
+                getPosterButtonText() {
+                    if (this.isWorking && this.progress.operation === 'generate_poster') {
+                        return '🎨 生成中...';
+                    }
+                    return '生成海报';
+                },
+                
                 // 定时任务相关方法
                 async loadScheduledTasks() {
                     try {
@@ -1290,9 +1409,32 @@
                         if (response.data.success) {
                             this.scheduledTasks = response.data.tasks;
                             this.addLog('info', `加载了 ${this.scheduledTasks.length} 个定时任务`);
+                            
+                            // 加载任务执行状态
+                            await this.loadTaskStatus();
+                        } else if (response.data.error) {
+                            this.addLog('warning', `加载定时任务时出现问题: ${response.data.error}`);
                         }
                     } catch (error) {
                         this.addLog('error', `加载定时任务失败: ${error.message}`);
+                    }
+                },
+                
+                async loadTaskStatus() {
+                    try {
+                        const response = await axios.get('/api/scheduler/all_task_status');
+                        if (response.data.success) {
+                            const taskStatus = response.data.task_status;
+                            
+                            // 更新任务状态
+                            this.scheduledTasks.forEach(task => {
+                                if (taskStatus[task.job_id]) {
+                                    task.execution_status = taskStatus[task.job_id];
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        // 忽略状态加载错误
                     }
                 },
                 
@@ -1418,10 +1560,37 @@
                     return texts[status] || '未知';
                 },
                 
+                getTaskExecutionStatusClass(status) {
+                    const classes = {
+                        'running': 'bg-blue-100 text-blue-800',
+                        'completed': 'bg-green-100 text-green-800',
+                        'error': 'bg-red-100 text-red-800'
+                    };
+                    return classes[status] || 'bg-gray-100 text-gray-800';
+                },
+                
+                getTaskExecutionStatusText(status) {
+                    const texts = {
+                        'running': '执行中',
+                        'completed': '执行完成',
+                        'error': '执行失败'
+                    };
+                    return texts[status] || '未知';
+                },
+                
                 formatDateTime(dateTimeStr) {
                     if (!dateTimeStr) return '';
                     const date = new Date(dateTimeStr);
                     return date.toLocaleString('zh-CN');
+                },
+                
+                // 定时任务状态轮询
+                startTaskStatusPolling() {
+                    setInterval(async () => {
+                        if (this.scheduledTasks.length > 0) {
+                            await this.loadTaskStatus();
+                        }
+                    }, 5000); // 每5秒更新一次任务状态
                 }
             }
         }).mount('#app');
