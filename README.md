@@ -1,7 +1,8 @@
-# [AI资讯采集平台](https://ainew.up.railway.app/)
+# 🤖 AI资讯采集系统
 
 <div align="center">
 
+![AI资讯采集系统](logo.png)
 
 **智能化AI资讯采集、处理与推送平台**
 

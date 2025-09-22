@@ -231,14 +231,28 @@ class ScheduledTaskManager:
                 'details': []
             }
             
-            # 计算目标日期
+            # 计算目标日期列表（周一=近3天，其它=单日）
             days_back = task_config.get('days_back', 0)
-            target_date = (date.today() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+            today = date.today()
+            weekday = today.weekday()  # Monday=0 ... Sunday=6
+            
+            if weekday == 0:
+                # 周一：采集包含当天的近3天，升序便于报告显示 start_to_end
+                date_list = [
+                    (today - timedelta(days=2)).strftime('%Y-%m-%d'),
+                    (today - timedelta(days=1)).strftime('%Y-%m-%d'),
+                    today.strftime('%Y-%m-%d')
+                ]
+                self.task_status[job_id]['details'].append('📅 周一自动启用多日采集（近3天，含当天）')
+            else:
+                # 其他工作日：保持单日
+                target_date = (today - timedelta(days=days_back)).strftime('%Y-%m-%d')
+                date_list = [target_date]
             
             # 执行完整流程
             asyncio.run(self._run_complete_workflow(
                 job_id=job_id,
-                date_list=[target_date],
+                date_list=date_list,
                 sources=task_config['sources'],
                 webhook_enabled=task_config['webhook_enabled'],
                 poster_enabled=task_config['poster_enabled']
